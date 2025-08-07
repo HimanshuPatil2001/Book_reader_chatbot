@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Chatbot - Intelligent Document Assistant</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <i class="fas fa-book-reader"></i>
+          <h1>PDF Chatbot</h1>
+        </div>
+        <p class="subtitle">Upload your PDF and ask intelligent questions</p>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Upload Section -->
+      <div class="upload-section" id="uploadSection">
+        <div class="upload-card">
+          <div class="upload-icon">
+            <i class="fas fa-cloud-upload-alt"></i>
+          </div>
+          <h2>Upload Your PDF</h2>
+          <p>Drag and drop your PDF file here or click to browse</p>
+          
+          <form id="uploadForm" enctype="multipart/form-data" class="upload-form">
+            <div class="file-input-wrapper">
+              <input type="file" name="pdf" accept=".pdf" required id="fileInput" />
+              <label for="fileInput" class="file-input-label">
+                <i class="fas fa-file-pdf"></i>
+                <span>Choose PDF File</span>
+              </label>
+            </div>
+            <button type="submit" class="upload-btn">
+              <i class="fas fa-upload"></i>
+              Upload & Process
+            </button>
+          </form>
+          
+          <div class="upload-status" id="uploadStatus" style="display: none;">
+            <div class="status-indicator">
+              <i class="fas fa-spinner fa-spin"></i>
+              <span>Processing your PDF...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Section -->
+      <div class="chat-section" id="chatSection" style="display: none;">
+        <div class="chat-container">
+          <div class="chat-header">
+            <h3><i class="fas fa-comments"></i> Chat with your PDF</h3>
+            <button class="new-chat-btn" onclick="startNewChat()">
+              <i class="fas fa-plus"></i> New Chat
+            </button>
+          </div>
+          
+          <div class="chat-messages" id="messages">
+            <div class="welcome-message">
+              <div class="welcome-icon">
+                <i class="fas fa-robot"></i>
+              </div>
+              <h4>Hello! I'm your PDF assistant</h4>
+              <p>I've analyzed your PDF and I'm ready to answer your questions. Ask me anything about the content!</p>
+            </div>
+          </div>
+          
+          <div class="chat-input-container">
+            <div class="input-wrapper">
+              <input type="text" id="userInput" placeholder="Ask a question about your PDF..." />
+              <button onclick="sendMessage()" class="send-btn" id="sendBtn">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </div>
+            <div class="typing-indicator" id="typingIndicator" style="display: none;">
+              <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <span>AI is thinking...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let chatUrl = "/ask";
+    let uploaded = false;
+
+    // File input styling
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      const fileName = e.target.files[0]?.name;
+      if (fileName) {
+        document.querySelector('.file-input-label span').textContent = fileName;
+        document.querySelector('.file-input-label').classList.add('file-selected');
+      }
+    });
+
+    // Upload form handling
+    document.getElementById("uploadForm").onsubmit = async function (e) {
+      e.preventDefault();
+      
+      const uploadStatus = document.getElementById('uploadStatus');
+      const uploadBtn = document.querySelector('.upload-btn');
+      const originalBtnText = uploadBtn.innerHTML;
+      
+      // Show loading state
+      uploadStatus.style.display = 'block';
+      uploadBtn.disabled = true;
+      uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+      
+      try {
+        let formData = new FormData(this);
+        let res = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
+        let result = await res.json();
+        uploaded = result.success;
+        
+        if (uploaded) {
+          // Show success and transition to chat
+          uploadStatus.innerHTML = `
+            <div class="status-indicator success">
+              <i class="fas fa-check-circle"></i>
+              <span>PDF uploaded and processed successfully!</span>
+            </div>
+          `;
+          
+          setTimeout(() => {
+            document.getElementById('uploadSection').style.display = 'none';
+            document.getElementById('chatSection').style.display = 'block';
+            document.getElementById('userInput').focus();
+          }, 1500);
+        } else {
+          throw new Error('Upload failed');
+        }
+      } catch (error) {
+        uploadStatus.innerHTML = `
+          <div class="status-indicator error">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>Upload failed. Please try again.</span>
+          </div>
+        `;
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = originalBtnText;
+      }
+    };
+
+    // Send message function
+    async function sendMessage() {
+      const userInput = document.getElementById('userInput');
+      const userMsg = userInput.value.trim();
+      
+      if (!userMsg) return;
+      
+      const messagesContainer = document.getElementById('messages');
+      const sendBtn = document.getElementById('sendBtn');
+      const typingIndicator = document.getElementById('typingIndicator');
+      
+      // Add user message
+      const userMessageDiv = document.createElement('div');
+      userMessageDiv.className = 'message user-message';
+      userMessageDiv.innerHTML = `
+        <div class="message-content">
+          <div class="message-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="message-text">${userMsg}</div>
+        </div>
+      `;
+      messagesContainer.appendChild(userMessageDiv);
+      
+      // Clear input and disable send button
+      userInput.value = '';
+      sendBtn.disabled = true;
+      
+      // Show typing indicator
+      typingIndicator.style.display = 'flex';
+      
+      // Scroll to bottom
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      
+      try {
+        let res = await fetch(chatUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: userMsg })
+        });
+        let data = await res.json();
+        
+        // Hide typing indicator
+        typingIndicator.style.display = 'none';
+        
+        // Add bot response
+        const botMessageDiv = document.createElement('div');
+        botMessageDiv.className = 'message bot-message';
+        botMessageDiv.innerHTML = `
+          <div class="message-content">
+            <div class="message-avatar">
+              <i class="fas fa-robot"></i>
+            </div>
+            <div class="message-text">${data.answer}</div>
+          </div>
+        `;
+        messagesContainer.appendChild(botMessageDiv);
+        
+      } catch (error) {
+        typingIndicator.style.display = 'none';
+        const errorMessageDiv = document.createElement('div');
+        errorMessageDiv.className = 'message bot-message error';
+        errorMessageDiv.innerHTML = `
+          <div class="message-content">
+            <div class="message-avatar">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="message-text">Sorry, I encountered an error. Please try again.</div>
+          </div>
+        `;
+        messagesContainer.appendChild(errorMessageDiv);
+      } finally {
+        sendBtn.disabled = false;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    }
+
+    // Enter key to send message
+    document.getElementById('userInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // New chat function
+    function startNewChat() {
+      document.getElementById('messages').innerHTML = `
+        <div class="welcome-message">
+          <div class="welcome-icon">
+            <i class="fas fa-robot"></i>
+          </div>
+          <h4>Hello! I'm your PDF assistant</h4>
+          <p>I've analyzed your PDF and I'm ready to answer your questions. Ask me anything about the content!</p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
