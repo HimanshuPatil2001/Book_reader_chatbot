@@ -19,10 +19,19 @@ _collection = None
 _sentence_transformer_ef = None
 
 def get_model():
-    """Lazy load the sentence transformer model"""
+    """Lazy load the sentence transformer model with error handling"""
     global _model
     if _model is None:
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        try:
+            # Set NumPy to use compatible mode
+            import numpy as np
+            np.set_printoptions(legacy='1.13')
+            
+            _model = SentenceTransformer("all-MiniLM-L6-v2")
+        except Exception as e:
+            print(f"Warning: Could not load sentence transformer model: {e}")
+            print("Falling back to basic text processing...")
+            _model = None
     return _model
 
 def get_gemini():
@@ -31,23 +40,32 @@ def get_gemini():
     if _gemini is None:
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY environment variable not set")
-        configure(api_key=GEMINI_API_KEY)
-        _gemini = GenerativeModel("models/gemini-2.0-flash")
+        try:
+            configure(api_key=GEMINI_API_KEY)
+            _gemini = GenerativeModel("models/gemini-2.0-flash")
+        except Exception as e:
+            print(f"Warning: Could not configure Gemini: {e}")
+            raise e
     return _gemini
 
 def get_collection():
-    """Lazy load the ChromaDB collection"""
+    """Lazy load the ChromaDB collection with fallback"""
     global _collection, _sentence_transformer_ef
     if _collection is None:
-        if _sentence_transformer_ef is None:
-            _sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name="all-MiniLM-L6-v2"
+        try:
+            if _sentence_transformer_ef is None:
+                _sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+                    model_name="all-MiniLM-L6-v2"
+                )
+            chroma_client = chromadb.Client()
+            _collection = chroma_client.create_collection(
+                name="book_chunks",
+                embedding_function=_sentence_transformer_ef
             )
-        chroma_client = chromadb.Client()
-        _collection = chroma_client.create_collection(
-            name="book_chunks",
-            embedding_function=_sentence_transformer_ef
-        )
+        except Exception as e:
+            print(f"Warning: Could not initialize ChromaDB: {e}")
+            print("Falling back to basic text storage...")
+            _collection = None
     return _collection
 
 stored_chunks = []
@@ -97,11 +115,12 @@ def process_pdf(path):
         
         stored_chunks = chunks
         
-        # Add to ChromaDB with memory management
+        # Add to ChromaDB with memory management (optional)
         try:
             collection = get_collection()
-            ids = [str(uuid.uuid4()) for _ in chunks]
-            collection.add(documents=chunks, ids=ids)
+            if collection:
+                ids = [str(uuid.uuid4()) for _ in chunks]
+                collection.add(documents=chunks, ids=ids)
         except Exception as e:
             print(f"Warning: Could not add to ChromaDB: {e}")
             # Continue without ChromaDB if there's an issue
@@ -126,8 +145,11 @@ def get_answer(query, chunks):
         else:
             try:
                 collection = get_collection()
-                results = collection.query(query_texts=[query], n_results=2)
-                context_chunks = results["documents"][0]
+                if collection:
+                    results = collection.query(query_texts=[query], n_results=2)
+                    context_chunks = results["documents"][0]
+                else:
+                    return "I'm sorry, I couldn't process your question. Please try uploading a PDF first."
             except Exception as e:
                 print(f"Warning: ChromaDB search failed: {e}")
                 return "I'm sorry, I couldn't process your question. Please try uploading a PDF first."
@@ -138,8 +160,9 @@ def get_answer(query, chunks):
             context = context[:3000]
         
         # Generate response with Gemini
-        gemini_model = get_gemini()
-        prompt = f"""
+        try:
+            gemini_model = get_gemini()
+            prompt = f"""
 Only answer based on the following context.
 If unsure or unrelated, say: "I don't know."
 
@@ -149,12 +172,16 @@ Context:
 Question: {query}
 Answer:
 """
-        response = gemini_model.generate_content(prompt)
-        
-        # Clean up memory
-        gc.collect()
-        
-        return response.text.strip()
+            response = gemini_model.generate_content(prompt)
+            
+            # Clean up memory
+            gc.collect()
+            
+            return response.text.strip()
+        except Exception as e:
+            print(f"Error generating Gemini response: {e}")
+            # Fallback to basic response
+            return f"Based on the document content, I found some relevant information: {context[:200]}... However, I couldn't generate a complete answer due to an error: {str(e)}"
         
     except Exception as e:
         print(f"Error generating answer: {e}")

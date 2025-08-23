@@ -1,6 +1,7 @@
 # Koyeb-optimized requirements for 512MB RAM free tier
 Flask==2.3.3
 pdfplumber==0.10.3
+numpy==1.24.3
 sentence-transformers==2.2.2
 google-generativeai==0.3.2
 chromadb==0.4.18

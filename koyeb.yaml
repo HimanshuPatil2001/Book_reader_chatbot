@@ -17,6 +17,10 @@ services:
         value: 8080
       - name: PYTHON_VERSION
         value: "3.9.18"
+      - name: PYTHONUNBUFFERED
+        value: "1"
+      - name: NUMBA_CACHE_DIR
+        value: "/tmp"
     ports:
       - port: 8080
         protocol: http
@@ -27,9 +31,9 @@ services:
       http:
         path: /health
         port: 8080
-      initial_delay: 30s
-      interval: 10s
-      timeout: 5s
+      initial_delay: 45s
+      interval: 15s
+      timeout: 10s
       unhealthy_threshold: 3
     resources:
       cpu: 0.25
@@ -39,3 +43,6 @@ services:
       max: 1
     build:
       requirements: requirements-koyeb.txt
+      build_command: |
+        pip install --no-cache-dir -r requirements-koyeb.txt
+        pip install --no-cache-dir numpy==1.24.3
