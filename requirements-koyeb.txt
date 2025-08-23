@@ -1,6 +1,6 @@
 # Koyeb-optimized requirements for 512MB RAM free tier
 Flask==2.3.3
-PyMuPDF==1.23.8
+pdfplumber==0.10.3
 sentence-transformers==2.2.2
 google-generativeai==0.3.2
 chromadb==0.4.18
@@ -8,4 +8,5 @@ python-dotenv==1.0.0
 gunicorn==21.2.0
 
 # Lighter alternatives for memory-constrained environments
-# faiss-cpu==1.7.4  # Commented out - too heavy for 512MB
+# PyMuPDF removed - too heavy and requires compilation
+# faiss-cpu removed - too heavy for 512MB RAM

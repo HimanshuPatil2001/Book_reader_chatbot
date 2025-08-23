@@ -1,5 +1,5 @@
 import os
-import fitz  # PyMuPDF
+import pdfplumber  # Lighter alternative to PyMuPDF
 import chromadb
 import uuid
 from sentence_transformers import SentenceTransformer
@@ -53,31 +53,46 @@ def get_collection():
 stored_chunks = []
 
 def process_pdf(path):
-    """Process PDF with memory management"""
+    """Process PDF with memory management using pdfplumber"""
     global stored_chunks
     
     try:
-        # Open and process PDF
-        doc = fitz.open(path)
-        full_text = "\n".join(page.get_text() for page in doc)
-        doc.close()  # Explicitly close to free memory
-        
-        # Chunk text with reasonable limits
-        chunk_size = 500
-        chunk_overlap = 100
-        chunks = []
+        # Open and process PDF with pdfplumber (much lighter than PyMuPDF)
+        with pdfplumber.open(path) as pdf:
+            full_text = ""
+            page_count = 0
+            
+            # Process pages with memory limits
+            for page in pdf.pages:
+                if page_count >= 50:  # Limit to 50 pages to prevent memory issues
+                    break
+                    
+                try:
+                    text = page.extract_text()
+                    if text:
+                        full_text += text + "\n"
+                    page_count += 1
+                except Exception as e:
+                    print(f"Warning: Could not extract text from page {page_count}: {e}")
+                    continue
         
         # Limit total text length to prevent memory issues
-        max_text_length = 1000000  # 1MB limit
+        max_text_length = 500000  # Reduced to 500KB for 512MB RAM constraint
         if len(full_text) > max_text_length:
             full_text = full_text[:max_text_length]
         
+        # Chunk text with reasonable limits
+        chunk_size = 300  # Reduced chunk size for memory efficiency
+        chunk_overlap = 50  # Reduced overlap
+        chunks = []
+        
         for i in range(0, len(full_text), chunk_size - chunk_overlap):
             chunk = full_text[i:i + chunk_size]
-            chunks.append(chunk)
+            if chunk.strip():  # Only add non-empty chunks
+                chunks.append(chunk)
             
             # Limit total chunks to prevent memory overflow
-            if len(chunks) >= 1000:
+            if len(chunks) >= 500:  # Reduced from 1000 for 512MB RAM
                 break
         
         stored_chunks = chunks
@@ -99,8 +114,6 @@ def process_pdf(path):
     except Exception as e:
         print(f"Error processing PDF: {e}")
         # Clean up on error
-        if 'doc' in locals():
-            doc.close()
         gc.collect()
         raise e
 
@@ -109,20 +122,20 @@ def get_answer(query, chunks):
     try:
         # Use stored chunks if available, otherwise search ChromaDB
         if chunks and len(chunks) > 0:
-            context_chunks = chunks[:3]  # Limit to top 3 chunks
+            context_chunks = chunks[:2]  # Reduced to 2 chunks for memory efficiency
         else:
             try:
                 collection = get_collection()
-                results = collection.query(query_texts=[query], n_results=3)
+                results = collection.query(query_texts=[query], n_results=2)
                 context_chunks = results["documents"][0]
             except Exception as e:
                 print(f"Warning: ChromaDB search failed: {e}")
                 return "I'm sorry, I couldn't process your question. Please try uploading a PDF first."
         
         # Limit context length to prevent memory issues
-        context = "\n".join(context_chunks[:3])
-        if len(context) > 5000:  # Limit context to 5KB
-            context = context[:5000]
+        context = "\n".join(context_chunks[:2])
+        if len(context) > 3000:  # Reduced to 3KB for memory efficiency
+            context = context[:3000]
         
         # Generate response with Gemini
         gemini_model = get_gemini()
