@@ -1,0 +1,37 @@
+name: book-reader-chatbot
+services:
+  - name: web
+    type: web
+    source:
+      git:
+        repository: your-github-username/Book_reader_chatbot
+        branch: main
+    env:
+      - name: GEMINI_API_KEY
+        value: your_gemini_api_key_here
+      - name: FLASK_ENV
+        value: production
+      - name: FLASK_DEBUG
+        value: false
+      - name: PORT
+        value: 8080
+    ports:
+      - port: 8080
+        protocol: http
+    routes:
+      - path: /
+        protocol: http
+    healthcheck:
+      http:
+        path: /health
+        port: 8080
+      initial_delay: 30s
+      interval: 10s
+      timeout: 5s
+      unhealthy_threshold: 3
+    resources:
+      cpu: 0.25
+      memory: 512Mi
+    scaling:
+      min: 1
+      max: 1
