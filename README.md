@@ -2,6 +2,10 @@
 
 A Flask-based chatbot that can read PDF documents and answer questions about their content using AI.
 
+## Demo
+
+![Tutorial](./assets/tutorial.gif)
+
 ## Features
 
 - PDF upload and processing
