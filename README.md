@@ -4,7 +4,7 @@ A Flask-based chatbot that can read PDF documents and answer questions about the
 
 ## Demo
 
-![Tutorial](./assets/tutorial.gif)
+https://github.com/user-attachments/assets/a7c79e71-7957-4c2c-b22d-fa84003352da
 
 ## Features
 
